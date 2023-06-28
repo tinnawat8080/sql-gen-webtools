@@ -1,0 +1,143 @@
+{{ define "show-list" }}
+{{ template "header" }}
+<div class="container">
+  <div class="row">
+    <div class="col-lg">
+      <button type="button" class="btn btn-primary" onclick='selectAllSprints()'>Select All</button>
+      <button type="button" class="btn btn-primary" onclick='deSelectAllSprints()'>Deselect All</button>
+    </div>
+    <div class="col-lg text-right">
+      <input type="radio" name="actionTemplate" value="initial" checked>
+      <label>Initial</label>
+      <input type="radio" name="actionTemplate" value="rollback">
+      <label>Rollback</label>&nbsp;&nbsp;
+      <button type="button" class="btn btn-primary" onclick='generateSQL()'>Generate</button>
+    </div>
+  </div>
+
+</div>
+<br>
+<div class="container">
+  <div class="row">
+    <div class="col-lg">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Sprint</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range.SprintNames }}
+          <tr>
+            <td><input type="checkbox" id="sprint{{.}}" name="sprint" value="{{.}}" onclick="getDBs();">
+              <label>{{.}}</label>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+    <div class="col-lg">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">DB Name</th>
+          </tr>
+        </thead>
+        <tbody id="displayDbNames">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+
+  function selectAllSprints() {
+    var ele = document.getElementsByName('sprint');
+    for (var i = 0; i < ele.length; i++) {
+      if (ele[i].type == 'checkbox')
+        ele[i].checked = true;
+    }
+    getDBs()
+  }
+
+  function deSelectAllSprints() {
+    var ele = document.getElementsByName('sprint');
+    for (var i = 0; i < ele.length; i++) {
+      if (ele[i].type == 'checkbox')
+        ele[i].checked = false;
+    }
+    getDBs()
+  }
+
+  function getDBs() {
+    var selectedSprints = getSelectedSprints()
+    $.ajax({
+      url: 'db-list/search',
+      type: "post",
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify(selectedSprints),
+      dataType: 'json',
+      success: function (r) {
+
+        $('#displayDbNames').html("")
+        for (i = 0; i < r.length; i++) {
+          $('#displayDbNames').append("<tr><td><input type='checkbox' name='db' value='" + r[i] + "'> <label>" + r[i] + "</label></td></tr>")
+        }
+      }
+    });
+  }
+
+  function generateSQL() {
+    var selectedSprints = getSelectedSprints()
+    var selectedDBs = getSelectedDBs()
+    var generateSQLRequest = {
+      "Sprints": selectedSprints,
+      "DBs": selectedDBs,
+      "action": $('input[name="actionTemplate"]:checked').val()
+    }
+
+    $.ajax({
+      url: 'sql-generate',
+      type: "post",
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify(generateSQLRequest),
+      dataType: 'json',
+      success: function (r) {
+        download("generated_from_webtools.sql", r)
+      }
+    });
+  }
+
+  function getSelectedSprints() {
+    var sprintCheckboxs = document.querySelectorAll('input[name="sprint"]:checked')
+    var selectedSprints = []
+    sprintCheckboxs.forEach((c) => {
+      selectedSprints.push(c.value)
+    })
+    return selectedSprints
+  }
+
+  function getSelectedDBs() {
+    var dbCheckboxs = document.querySelectorAll('input[name="db"]:checked')
+    var selectedDBs = []
+    dbCheckboxs.forEach((c) => {
+      selectedDBs.push(c.value);
+    })
+    return selectedDBs
+  }
+
+  function download(filename, text) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  }
+
+</script>
+{{ template "footer" }}
+{{ end }}
