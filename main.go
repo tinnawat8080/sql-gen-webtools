@@ -36,9 +36,13 @@ func showListHandler(w http.ResponseWriter, r *http.Request) {
 	var sprintNames []string
 	for _, e := range entries {
 		if e.IsDir() {
-			sprintNames = append(sprintNames, e.Name())
+			if !strings.Contains(e.Name(), ".") {
+				sprintNames = append(sprintNames, e.Name())
+			}
 		}
 	}
+	// sprintNames = sort.StringSlice(sprintNames)
+	// sort.Sort(sort.Reverse(sort.StringSlice(sprintNames)))
 	showList.SprintNames = sprintNames
 	tmpl.ExecuteTemplate(w, "show-list", showList)
 }
