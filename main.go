@@ -1,28 +1,23 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 var tmpl = template.Must(template.ParseGlob("templates/*"))
-var baseFilePath = "/Users/5311637/workspace/backend/initial-sql"
+var sqlFilesPath = "/Users/5311637/workspace/backend/initial-sql"
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Error loading .env file")
-	}
-
+	godotenv.Load()
 	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-	}
 
 	http.HandleFunc("/", showListHandler)
 	http.HandleFunc("/db-list/search", getDbListHandler)
@@ -33,7 +28,7 @@ func main() {
 
 func showListHandler(w http.ResponseWriter, r *http.Request) {
 	showList := ShowList{}
-	entries, err := os.ReadDir(baseFilePath)
+	entries, err := os.ReadDir(sqlFilesPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,7 +50,7 @@ func getDbListHandler(w http.ResponseWriter, r *http.Request) {
 	var dbNames []string
 	var template = "template"
 	for _, sprint := range selectedSprints {
-		dbDir, _ := os.ReadDir(baseFilePath + "/" + sprint + "/" + template)
+		dbDir, _ := os.ReadDir(sqlFilesPath + "/" + sprint + "/" + template)
 		for _, db := range dbDir {
 			if !contains(dbNames, db.Name()) {
 				dbNames = append(dbNames, db.Name())
@@ -74,19 +69,37 @@ func generateSQLHandler(w http.ResponseWriter, r *http.Request) {
 	if generateSQLRequest.Action == "rollback" {
 		template = "rollback"
 	}
-	var content string
+	var allContent string
 	for _, sprint := range generateSQLRequest.Sprints {
+		var sprintContent string = ""
 		for _, db := range generateSQLRequest.DBs {
-			var path = baseFilePath + "/" + sprint + "/" + template + "/" + db
+			var path = sqlFilesPath + "/" + sprint + "/" + template + "/" + db
 			files, _ := os.ReadDir(path)
 			for _, file := range files {
 				body, _ := os.ReadFile(path + "/" + file.Name())
-				content += string(body)
+				sprintContent += string(body)
 			}
 		}
+		value, _ := os.Open(sqlFilesPath + "/" + sprint + "/" + "value_local.txt")
+		fileScanner := bufio.NewScanner(value)
+		fileScanner.Split(bufio.ScanLines)
+		var valueMap map[string]string = make(map[string]string)
+		for fileScanner.Scan() {
+			v := strings.Split(fileScanner.Text(), "=")
+			valueMap[v[0]] = v[1]
+		}
+		sprintContent = replaceVariableWithValue(sprintContent, valueMap)
+		allContent += sprintContent
 	}
-	response, _ := json.Marshal(content)
+	response, _ := json.Marshal(allContent)
 	w.Write(response)
+}
+
+func replaceVariableWithValue(content string, valueMap map[string]string) string {
+	for key, element := range valueMap {
+		content = strings.ReplaceAll(content, "$"+key+"$", element)
+	}
+	return content
 }
 
 func contains(elems []string, v string) bool {
